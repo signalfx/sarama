@@ -312,10 +312,9 @@ func (client *Client) refreshMetadata(topics []string, retries int) error {
 		time.Sleep(client.config.WaitForElection)
 		client.resurrectDeadBrokers()
 		return client.refreshMetadata(topics, retries-1)
-	} else {
-		Logger.Printf("Out of available brokers.\n")
 	}
 
+	Logger.Printf("Out of available brokers.\n")
 	return OutOfBrokers
 }
 

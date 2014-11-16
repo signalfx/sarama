@@ -13,8 +13,13 @@ type CompressionCodec int8
 const compressionCodecMask int8 = 0x03
 
 const (
-	CompressionNone   CompressionCodec = 0
-	CompressionGZIP   CompressionCodec = 1
+	// CompressionNone means that the message is not compressed
+	CompressionNone CompressionCodec = 0
+
+	// CompressionGZIP means that the message uses GZIP compression
+	CompressionGZIP CompressionCodec = 1
+
+	// CompressionSnappy means that the message uses Snappy compression
 	CompressionSnappy CompressionCodec = 2
 )
 

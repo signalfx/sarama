@@ -18,7 +18,7 @@ func snappyDecode(src []byte) ([]byte, error) {
 	if bytes.Equal(src[:8], snappyMagic) {
 		pos := uint32(16)
 		max := uint32(len(src))
-		dst := make([]byte, 0)
+		var dst []byte
 		for pos < max {
 			size := binary.BigEndian.Uint32(src[pos : pos+4])
 			pos = pos + 4
