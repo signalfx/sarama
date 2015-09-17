@@ -7,6 +7,10 @@ import (
 
 	"github.com/eapache/go-resiliency/breaker"
 	"github.com/eapache/queue"
+	"sync/atomic"
+	"runtime/debug"
+	"runtime/pprof"
+"os"
 )
 
 // AsyncProducer publishes Kafka messages using a non-blocking API. It routes messages
@@ -43,6 +47,47 @@ type AsyncProducer interface {
 	Errors() <-chan *ProducerError
 }
 
+type SafeWaitGroup struct {
+	wg sync.WaitGroup
+	hasPaniced int64
+}
+
+func (b *SafeWaitGroup) onPanic(rec interface{}) {
+	fmt.Printf("Had to recover from sarama state machine error: %s\n", rec)
+	atomic.StoreInt64(&b.hasPaniced, 1)
+	Logger.Println(rec)
+	debug.PrintStack()
+	pprof.Lookup("goroutine").WriteTo(os.Stderr, 2)
+}
+
+func (b *SafeWaitGroup) Add(delta int) {
+	if atomic.LoadInt64(&b.hasPaniced) == 0 {
+		defer func() {
+			if rec := recover(); rec != nil {
+				b.onPanic(rec)
+			}
+		}()
+		b.wg.Add(delta)
+	}
+}
+
+func (b *SafeWaitGroup) Done() {
+	if atomic.LoadInt64(&b.hasPaniced) == 0 {
+		defer func() {
+			if rec := recover(); rec != nil {
+				b.onPanic(rec)
+			}
+		}()
+		b.wg.Done()
+	}
+}
+
+func (b *SafeWaitGroup) Wait() {
+	if atomic.LoadInt64(&b.hasPaniced) == 0 {
+		b.wg.Wait()
+	}
+}
+
 type asyncProducer struct {
 	client    Client
 	conf      *Config
@@ -50,7 +95,7 @@ type asyncProducer struct {
 
 	errors                    chan *ProducerError
 	input, successes, retries chan *ProducerMessage
-	inFlight                  sync.WaitGroup
+	inFlight                  SafeWaitGroup
 
 	brokers    map[*Broker]chan<- *ProducerMessage
 	brokerRefs map[chan<- *ProducerMessage]int
