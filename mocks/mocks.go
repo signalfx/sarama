@@ -19,11 +19,15 @@ import (
 	"github.com/Shopify/sarama"
 )
 
-// A simple interface that includes the testing.T methods we use to report
+// ErrorReporter is a simple interface that includes the testing.T methods we use to report
 // expectation violations when using the mock objects.
 type ErrorReporter interface {
 	Errorf(string, ...interface{})
 }
+
+// ValueChecker is a function type to be set in each expectation of the producer mocks
+// to check the value passed.
+type ValueChecker func(val []byte) error
 
 var (
 	errProduceSuccess              error = nil
@@ -34,7 +38,8 @@ var (
 const AnyOffset int64 = -1000
 
 type producerExpectation struct {
-	Result error
+	Result        error
+	CheckFunction ValueChecker
 }
 
 type consumerExpectation struct {

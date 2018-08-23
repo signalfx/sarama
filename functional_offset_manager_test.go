@@ -19,10 +19,6 @@ func TestFuncOffsetManager(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := offsetManager.ManagePartition("does_not_exist", 123); err != ErrUnknownTopicOrPartition {
-		t.Fatal("Expected ErrUnknownTopicOrPartition when starting a partition offset manager for a partition that does not exist, got:", err)
-	}
-
 	pom1, err := offsetManager.ManagePartition("test.1", 0)
 	if err != nil {
 		t.Fatal(err)
@@ -38,8 +34,8 @@ func TestFuncOffsetManager(t *testing.T) {
 
 	offset, metadata := pom2.NextOffset()
 
-	if offset != 10+1 {
-		t.Errorf("Expected the next offset to be 11, found %d.", offset)
+	if offset != 10 {
+		t.Errorf("Expected the next offset to be 10, found %d.", offset)
 	}
 	if metadata != "test metadata" {
 		t.Errorf("Expected metadata to be 'test metadata', found %s.", metadata)

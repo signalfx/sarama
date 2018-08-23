@@ -1,18 +1,23 @@
 package sarama
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+
+	"github.com/rcrowley/go-metrics"
+)
 
 type realEncoder struct {
-	raw   []byte
-	off   int
-	stack []pushEncoder
+	raw      []byte
+	off      int
+	stack    []pushEncoder
+	registry metrics.Registry
 }
 
 // primitives
 
 func (re *realEncoder) putInt8(in int8) {
 	re.raw[re.off] = byte(in)
-	re.off += 1
+	re.off++
 }
 
 func (re *realEncoder) putInt16(in int16) {
@@ -30,9 +35,21 @@ func (re *realEncoder) putInt64(in int64) {
 	re.off += 8
 }
 
+func (re *realEncoder) putVarint(in int64) {
+	re.off += binary.PutVarint(re.raw[re.off:], in)
+}
+
 func (re *realEncoder) putArrayLength(in int) error {
 	re.putInt32(int32(in))
 	return nil
+}
+
+func (re *realEncoder) putBool(in bool) {
+	if in {
+		re.putInt8(1)
+		return
+	}
+	re.putInt8(0)
 }
 
 // collection
@@ -49,15 +66,45 @@ func (re *realEncoder) putBytes(in []byte) error {
 		return nil
 	}
 	re.putInt32(int32(len(in)))
-	copy(re.raw[re.off:], in)
-	re.off += len(in)
-	return nil
+	return re.putRawBytes(in)
+}
+
+func (re *realEncoder) putVarintBytes(in []byte) error {
+	if in == nil {
+		re.putVarint(-1)
+		return nil
+	}
+	re.putVarint(int64(len(in)))
+	return re.putRawBytes(in)
 }
 
 func (re *realEncoder) putString(in string) error {
 	re.putInt16(int16(len(in)))
 	copy(re.raw[re.off:], in)
 	re.off += len(in)
+	return nil
+}
+
+func (re *realEncoder) putNullableString(in *string) error {
+	if in == nil {
+		re.putInt16(-1)
+		return nil
+	}
+	return re.putString(*in)
+}
+
+func (re *realEncoder) putStringArray(in []string) error {
+	err := re.putArrayLength(len(in))
+	if err != nil {
+		return err
+	}
+
+	for _, val := range in {
+		if err := re.putString(val); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -83,6 +130,10 @@ func (re *realEncoder) putInt64Array(in []int64) error {
 	return nil
 }
 
+func (re *realEncoder) offset() int {
+	return re.off
+}
+
 // stacks
 
 func (re *realEncoder) push(in pushEncoder) {
@@ -97,4 +148,9 @@ func (re *realEncoder) pop() error {
 	re.stack = re.stack[:len(re.stack)-1]
 
 	return in.run(re.off, re.raw)
+}
+
+// we do record metrics during the real encoder pass
+func (re *realEncoder) metricRegistry() metrics.Registry {
+	return re.registry
 }
