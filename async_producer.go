@@ -689,7 +689,7 @@ func (bp *brokerProducer) needsRetry(msg *ProducerMessage) error {
 }
 
 func (bp *brokerProducer) waitForSpace(msg *ProducerMessage) error {
-	Logger.Printf("producer/broker/%d maximum request accumulated, waiting for space\n", bp.broker.ID())
+	Logger.Printf("producer/broker/%d topic:%s maximum request accumulated, waiting for space\n", bp.broker.ID(), msg.Topic)
 
 	for {
 		select {
@@ -764,6 +764,7 @@ func (bp *brokerProducer) handleSuccess(sent *produceSet, response *ProduceRespo
 			bp.parent.retryMessages(bp.buffer.dropPartition(topic, partition), block.Err)
 		// Other non-retriable errors
 		default:
+			Logger.Printf("producer/broker/%d non-retriable error on %s/%d because %v total msgs %d\n", bp.broker.ID(), topic, partition, block.Err, len(msgs))
 			bp.parent.returnErrors(msgs, block.Err)
 		}
 	})
